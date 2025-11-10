@@ -112,7 +112,7 @@
     });
   }
 
-  // DOM traversal to render tree
+  // Recursive DOM traversal to display HTML tree
   function traverse(node) {
     if (node.nodeType === Node.TEXT_NODE) {
       if (node.textContent.trim()) {
@@ -130,20 +130,18 @@
 
     li.textContent = `<${tagName}`;
 
-    // Attributes display
+    // Attributes
     if (node.attributes && node.attributes.length) {
-      const attrSpans = [];
       for (const attr of node.attributes) {
         const span = document.createElement('span');
         span.className = 'attr';
         span.textContent = ` ${attr.name}="${attr.value}"`;
-        attrSpans.push(span);
+        li.appendChild(span);
       }
-      attrSpans.forEach(s => li.appendChild(s));
     }
     li.appendChild(document.createTextNode('>'));
 
-    // Children nodes
+    // Children
     if (node.childNodes && node.childNodes.length) {
       const ul = document.createElement('ul');
       for (const child of node.childNodes) {
@@ -156,7 +154,6 @@
     return li;
   }
 
-  // Elements
   const htmlInput = document.getElementById('htmlInput');
   const output = document.getElementById('output');
   const parseBtn = document.getElementById('parseBtn');
@@ -196,7 +193,7 @@
     output.innerHTML = '';
   });
 
-  // Install PWA prompt logic
+  // PWA install button logic
   let deferredPrompt;
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
