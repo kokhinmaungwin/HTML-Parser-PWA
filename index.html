@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HTML Parser PWA</title>
+
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0f62fe" />
+
+<style>
+  body, html {
+    height: 100%;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    background: #0f62fe;
+    color: white;
+    padding: 1rem;
+    font-weight: bold;
+    text-align: center;
+  }
+  main {
+    flex: 1;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  textarea {
+    width: 100%;
+    height: 150px;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    resize: vertical;
+  }
+  button {
+    background: #0f62fe;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+  }
+  button:hover {
+    background: #0b4dcc;
+  }
+  #output {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    padding: 10px 15px;
+    border-radius: 8px;
+    background: #fafafa;
+  }
+  ul {
+    list-style: none;
+    padding-left: 20px;
+  }
+  li {
+    margin-bottom: 4px;
+    font-family: monospace;
+  }
+  .attr {
+    color: #007acc;
+  }
+  .text-node {
+    color: #333;
+    font-style: italic;
+  }
+  .controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  #installBtn {
+    margin-left: auto;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<header>HTML Parser PWA</header>
+
+<main>
+  <textarea id="htmlInput" placeholder="Paste or write your HTML code here...">&lt;div class="container"&gt;&lt;h1&gt;Hello&lt;/h1&gt;&lt;p&gt;This is a test.&lt;/p&gt;&lt;/div&gt;</textarea>
+
+  <div class="controls">
+    <button id="parseBtn">Parse HTML</button>
+    <button id="copyBtn">Select & Copy Output</button>
+    <button id="clearBtn">Clear Output</button>
+    <button id="installBtn">Install App</button>
+  </div>
+
+  <div id="output" aria-live="polite" role="region" tabindex="0"></div>
+</main>
+
+<script>
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {
+      console.log('SW registration failed');
+    });
+  }
+
+  // DOM traversal to render tree
+  function traverse(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (node.textContent.trim()) {
+        const li = document.createElement('li');
+        li.classList.add('text-node');
+        li.textContent = `"${node.textContent.trim()}"`;
+        return li;
+      }
+      return null;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return null;
+
+    const li = document.createElement('li');
+    const tagName = node.tagName.toLowerCase();
+
+    li.textContent = `<${tagName}`;
+
+    // Attributes display
+    if (node.attributes && node.attributes.length) {
+      const attrSpans = [];
+      for (const attr of node.attributes) {
+        const span = document.createElement('span');
+        span.className = 'attr';
+        span.textContent = ` ${attr.name}="${attr.value}"`;
+        attrSpans.push(span);
+      }
+      attrSpans.forEach(s => li.appendChild(s));
+    }
+    li.appendChild(document.createTextNode('>'));
+
+    // Children nodes
+    if (node.childNodes && node.childNodes.length) {
+      const ul = document.createElement('ul');
+      for (const child of node.childNodes) {
+        const childEl = traverse(child);
+        if (childEl) ul.appendChild(childEl);
+      }
+      li.appendChild(ul);
+    }
+    li.appendChild(document.createTextNode(`</${tagName}>`));
+    return li;
+  }
+
+  // Elements
+  const htmlInput = document.getElementById('htmlInput');
+  const output = document.getElementById('output');
+  const parseBtn = document.getElementById('parseBtn');
+  const copyBtn = document.getElementById('copyBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const installBtn = document.getElementById('installBtn');
+
+  parseBtn.addEventListener('click', () => {
+    const rawHTML = htmlInput.value;
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(rawHTML, 'text/html');
+
+    output.innerHTML = '';
+    const ul = document.createElement('ul');
+    const tree = traverse(doc.body);
+    if(tree) ul.appendChild(tree);
+    output.appendChild(ul);
+  });
+
+  copyBtn.addEventListener('click', () => {
+    const range = document.createRange();
+    range.selectNodeContents(output);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    try {
+      document.execCommand('copy');
+      alert('Copied output to clipboard!');
+      sel.removeAllRanges();
+    } catch {
+      alert('Copy failed. Try manual selection.');
+    }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    output.innerHTML = '';
+  });
+
+  // Install PWA prompt logic
+  let deferredPrompt;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    installBtn.style.display = 'inline-block';
+  });
+
+  installBtn.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const choice = await deferredPrompt.userChoice;
+    if (choice.outcome === 'accepted') {
+      console.log('User accepted install');
+    } else {
+      console.log('User dismissed install');
+    }
+    deferredPrompt = null;
+    installBtn.style.display = 'none';
+  });
+
+  window.addEventListener('appinstalled', () => {
+    console.log('App installed');
+    installBtn.style.display = 'none';
+  });
+
+  // Initial parse on load
+  parseBtn.click();
+</script>
+
+</body>
+</html>
